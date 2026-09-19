@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 
 
@@ -59,7 +59,22 @@ class ScreenshotParseRequest(BaseModel):
     screenshot_base64: str = Field(..., description="Base64 encoded image string of Task Manager")
 
 
+class SessionCreateRequest(BaseModel):
+    domain: DomainEnum = Field(DomainEnum.PERFORMANCE, description="Troubleshooting domain")
+
+
+class SessionResponse(BaseModel):
+    session_id: str = Field(..., description="Unique session identifier")
+    domain: DomainEnum = Field(DomainEnum.PERFORMANCE, description="Troubleshooting domain")
+    observations: List[Observation] = Field(default_factory=list, description="Stored observations")
+    ranked_causes: List[RankedCause] = Field(default_factory=list, description="Stored ranked causes")
+    status: str = Field("active", description="Session status (active, in_progress, completed, resolved)")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+    updated_at: str = Field(..., description="ISO 8601 last update timestamp")
+
+
 class DiagnosticRequest(BaseModel):
+    session_id: Optional[str] = Field(None, description="Optional active session ID for persistence")
     domain: DomainEnum = Field(DomainEnum.PERFORMANCE, description="Troubleshooting domain")
     text_input: Optional[str] = Field(None, description="Optional raw text description")
     screenshot_base64: Optional[str] = Field(None, description="Optional Task Manager screenshot base64")
@@ -68,6 +83,7 @@ class DiagnosticRequest(BaseModel):
 
 
 class DiagnosticResponse(BaseModel):
+    session_id: Optional[str] = Field(None, description="Associated session ID if applicable")
     domain: DomainEnum = Field(DomainEnum.PERFORMANCE, description="Troubleshooting domain")
     processed_observations: List[Observation] = Field(default_factory=list, description="Processed input observations")
     ranked_causes: List[RankedCause] = Field(default_factory=list, description="Ranked candidate causes")

@@ -1,35 +1,51 @@
+from typing import Optional
 from fastapi import APIRouter, HTTPException, status
-from app.schemas.diagnostic import SessionCreate, SessionState
+from app.schemas.diagnostic import SessionCreateRequest, SessionResponse
 from app.db.supabase import SupabaseSessionManager
 
-router = APIRouter(prefix="/api/session", tags=["Session"])
+router = APIRouter(prefix="/api/session", tags=["Session Persistence"])
 db_manager = SupabaseSessionManager()
 
 
-@router.post("", response_model=SessionState, status_code=status.HTTP_201_CREATED)
-def create_session(payload: SessionCreate):
+@router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+def create_session(payload: Optional[SessionCreateRequest] = None):
     """
-    Creates a new troubleshooting session.
+    Creates a new active troubleshooting session in Supabase.
     """
     try:
-        session = db_manager.create_session(domain=payload.domain)
+        domain = payload.domain if payload else SessionCreateRequest().domain
+        session = db_manager.create_session(domain=domain)
         return session
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create session: {str(e)}"
+            detail="Failed to create troubleshooting session."
         )
 
 
-@router.get("/{session_id}", response_model=SessionState)
+@router.get("/{session_id}", response_model=SessionResponse)
 def get_session(session_id: str):
     """
-    Retrieves state and history of an existing diagnostic session.
+    Retrieves stored session state from Supabase by session ID.
+    Returns HTTP 404 if missing or invalid.
     """
-    session = db_manager.get_session(session_id)
-    if not session:
+    if not session_id or not session_id.strip():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session with ID '{session_id}' not found."
+            detail="Session ID cannot be empty."
         )
-    return session
+    try:
+        session = db_manager.get_session(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session '{session_id}' not found."
+            )
+        return session
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving session details."
+        )

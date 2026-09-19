@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.diagnostic import router as diagnostic_router
+from app.api.session import router as session_router
 
 app = FastAPI(
     title="FixIT Saarthi Backend",
@@ -16,6 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(session_router)
 app.include_router(diagnostic_router)
 
 

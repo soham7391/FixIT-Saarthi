@@ -11,12 +11,14 @@ from app.schemas.diagnostic import (
 from app.gemini.client import GeminiAssistant
 from app.expert_engine.evaluator import ExpertEvaluator
 from app.expert_engine.ranker import CauseRanker
+from app.db.supabase import SupabaseSessionManager
 
 router = APIRouter(prefix="/api/diagnostic", tags=["Diagnostic Engine"])
 
 gemini_assistant = GeminiAssistant()
 evaluator = ExpertEvaluator(domain=DomainEnum.PERFORMANCE)
 ranker = CauseRanker()
+db_manager = SupabaseSessionManager()
 
 
 @router.post("/parse-text", response_model=List[Observation])
@@ -88,13 +90,25 @@ async def parse_screenshot(request: Request):
 @router.post("/evaluate", response_model=DiagnosticResponse)
 def evaluate_diagnostic(request: DiagnosticRequest):
     """
-    Core diagnostic endpoint:
-    1. If raw text or screenshot base64 is provided in request, extracts observations via Gemini.
-    2. Merges extracted observations with request.observations.
-    3. Evaluates observations through deterministic Expert Engine.
-    4. Ranks candidate causes and returns step-by-step fix actions with safety levels.
+    Core diagnostic evaluation endpoint connected to Supabase session persistence:
+    1. If session_id is provided, fetches session state from Supabase (returns 404 if invalid/missing).
+    2. Merges existing session observations with Gemini text/screenshot extractions and request observations.
+    3. Evaluates observations through the deterministic Expert Engine.
+    4. Persists updated observations, ranked causes, and timestamps in Supabase troubleshooting_sessions table.
+    5. Returns expert engine diagnostic response.
     """
     accumulated_obs: Dict[str, Observation] = {}
+    existing_session = None
+
+    if request.session_id:
+        existing_session = db_manager.get_session(request.session_id)
+        if not existing_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session '{request.session_id}' not found."
+            )
+        for obs in existing_session.observations:
+            accumulated_obs[obs.key] = obs
 
     if request.text_input and request.text_input.strip():
         try:
@@ -128,7 +142,17 @@ def evaluate_diagnostic(request: DiagnosticRequest):
     raw_evaluations = evaluator.evaluate(obs_list)
     ranked_causes = ranker.rank_causes(raw_evaluations, accumulated_obs)
 
+    # Persist in Supabase if session_id is present
+    if request.session_id:
+        db_manager.update_session(
+            session_id=request.session_id,
+            observations=obs_list,
+            ranked_causes=ranked_causes,
+            status="in_progress"
+        )
+
     return DiagnosticResponse(
+        session_id=request.session_id,
         domain=request.domain,
         processed_observations=obs_list,
         ranked_causes=ranked_causes,

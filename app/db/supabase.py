@@ -1,144 +1,227 @@
 import os
+import re
 import uuid
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from pathlib import Path
+from typing import Optional, Dict, Any, List
+
 from dotenv import load_dotenv
 
-from app.schemas.diagnostic import SessionState, DomainEnum, Observation, RankedCause
+try:
+    from supabase import create_client
+except ImportError:
+    create_client = None
 
-load_dotenv()
+from app.schemas.diagnostic import (
+    SessionResponse,
+    DomainEnum,
+    Observation,
+    RankedCause
+)
+
+# Load .env relative to THIS file's directory so it works regardless of CWD
+_ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(dotenv_path=_ENV_PATH)
+
 logger = logging.getLogger(__name__)
 
-# In-memory storage fallback for local dev & testing without Supabase credentials
+# Fallback in-memory store — used ONLY when credentials are genuinely unavailable
 _IN_MEMORY_SESSIONS: Dict[str, Dict[str, Any]] = {}
+
+_URL_PATTERN = re.compile(r"^https://[a-zA-Z0-9\-]+\.supabase\.co/?$")
+
+
+def _validate_supabase_url(url: str) -> bool:
+    """Returns True if url looks like a valid Supabase project URL."""
+    return bool(url and _URL_PATTERN.match(url.rstrip("/")))
 
 
 class SupabaseSessionManager:
     """
-    Manages diagnostic session persistence using Supabase PostgreSQL client.
-    Includes seamless in-memory fallback for local dev & testing when unconfigured.
+    Isolated Supabase persistence manager for troubleshooting sessions.
+    Interacts with public.troubleshooting_sessions table.
+
+    In-memory fallback is only used when credentials are genuinely unavailable
+    (env vars missing or empty). Real Supabase errors are raised so they are
+    visible — they are NOT silently swallowed into the fallback.
     """
 
-    def __init__(self):
-        self.supabase_url = os.getenv("SUPABASE_URL", "").strip()
-        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    def __init__(self, url: Optional[str] = None, secret_key: Optional[str] = None):
+        raw_url = (url or os.getenv("SUPABASE_URL", "")).strip()
+        raw_key = (
+            secret_key or
+            os.getenv("SUPABASE_SECRET_KEY", "") or
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY", "") or
+            os.getenv("SUPABASE_KEY", "")
+        ).strip()
+
         self.client = None
+        self._use_memory = False
 
-        if self.supabase_url and self.supabase_key and "your_supabase" not in self.supabase_url:
-            try:
-                from supabase import create_client, Client
-                self.client: Optional[Client] = create_client(self.supabase_url, self.supabase_key)
-                logger.info("Supabase PostgreSQL client connected successfully.")
-            except Exception as e:
-                logger.warning(f"Failed to connect to Supabase: {e}. Utilizing in-memory session persistence.")
+        if not raw_url or not raw_key:
+            logger.info("Supabase credentials not set — using in-memory session store.")
+            self._use_memory = True
+            return
 
-    def create_session(self, domain: DomainEnum = DomainEnum.PERFORMANCE) -> SessionState:
-        """
-        Creates a new diagnostic session.
-        """
+        if not _validate_supabase_url(raw_url):
+            logger.error(
+                "SUPABASE_URL does not look like a valid Supabase project URL "
+                "(expected https://<project>.supabase.co). "
+                "Check your .env — you may have a publishable/anon key set in SUPABASE_URL instead of the URL. "
+                "Falling back to in-memory store until this is corrected."
+            )
+            self._use_memory = True
+            return
+
+        if create_client is None:
+            logger.error("supabase package is not installed — pip install supabase")
+            self._use_memory = True
+            return
+
+        try:
+            self.client = create_client(raw_url, raw_key)
+            logger.info("Supabase client initialised successfully.")
+        except Exception as e:
+            logger.error(
+                f"Failed to create Supabase client ({type(e).__name__}: {e}). "
+                "Check SUPABASE_URL and SUPABASE_SECRET_KEY in .env."
+            )
+            self._use_memory = True
+
+    # ------------------------------------------------------------------ #
+    #  Public CRUD methods                                                 #
+    # ------------------------------------------------------------------ #
+
+    def create_session(self, domain: DomainEnum = DomainEnum.PERFORMANCE) -> SessionResponse:
+        """Creates a new active troubleshooting session."""
         session_id = str(uuid.uuid4())
-        now_str = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(timezone.utc).isoformat()
 
-        session_data = {
+        session_data: Dict[str, Any] = {
             "session_id": session_id,
-            "domain": domain.value,
-            "observations": {},
+            "domain": domain.value if isinstance(domain, DomainEnum) else str(domain),
+            "observations": [],
             "ranked_causes": [],
-            "is_resolved": False,
-            "created_at": now_str,
-            "updated_at": now_str
+            "status": "active",
+            "created_at": now_iso,
+            "updated_at": now_iso,
         }
 
         if self.client:
             try:
-                self.client.table("diagnostic_sessions").insert(session_data).execute()
+                res = self.client.table("troubleshooting_sessions").insert(session_data).execute()
+                if res.data and len(res.data) > 0:
+                    session_data = res.data[0]
+                    logger.info(f"Session {session_id[:8]}… created in Supabase.")
+                else:
+                    raise RuntimeError("Insert returned no data — check table RLS policies.")
             except Exception as e:
-                logger.error(f"Supabase insert failed: {e}. Storing in memory fallback.")
-                _IN_MEMORY_SESSIONS[session_id] = session_data
+                raise RuntimeError(
+                    f"Supabase insert failed ({type(e).__name__}): {e}. "
+                    "Verify the table exists and Row Level Security allows inserts with your key."
+                ) from e
         else:
             _IN_MEMORY_SESSIONS[session_id] = session_data
 
-        return SessionState(
-            session_id=session_id,
-            domain=domain,
-            observations={},
-            ranked_causes=[],
-            is_resolved=False,
-            created_at=now_str,
-            updated_at=now_str
-        )
+        return self._format_session_response(session_data)
 
-    def get_session(self, session_id: str) -> Optional[SessionState]:
-        """
-        Retrieves an existing diagnostic session by session_id.
-        """
-        session_data = None
+    def get_session(self, session_id: str) -> Optional[SessionResponse]:
+        """Retrieves a session by ID. Returns None if not found."""
+        if not session_id or not session_id.strip():
+            return None
 
         if self.client:
             try:
-                response = self.client.table("diagnostic_sessions").select("*").eq("session_id", session_id).execute()
-                if response.data and len(response.data) > 0:
-                    session_data = response.data[0]
+                res = (
+                    self.client.table("troubleshooting_sessions")
+                    .select("*")
+                    .eq("session_id", session_id)
+                    .execute()
+                )
+                if res.data and len(res.data) > 0:
+                    return self._format_session_response(res.data[0])
+                return None
             except Exception as e:
-                logger.error(f"Supabase fetch failed: {e}. Checking in-memory store.")
-                session_data = _IN_MEMORY_SESSIONS.get(session_id)
+                err_msg = str(e)
+                if "22P02" in err_msg or "invalid input syntax for type uuid" in err_msg:
+                    return None
+                raise RuntimeError(
+                    f"Supabase fetch failed ({type(e).__name__}): {e}."
+                ) from e
         else:
-            session_data = _IN_MEMORY_SESSIONS.get(session_id)
-
-        if not session_data:
-            return None
-
-        # Reconstruct Observation objects from dict
-        raw_obs = session_data.get("observations", {})
-        parsed_obs: Dict[str, Observation] = {}
-        for key, obs_dict in raw_obs.items():
-            if isinstance(obs_dict, dict):
-                parsed_obs[key] = Observation(**obs_dict)
-
-        raw_causes = session_data.get("ranked_causes", [])
-        parsed_causes: list[RankedCause] = [RankedCause(**c) if isinstance(c, dict) else c for c in raw_causes]
-
-        return SessionState(
-            session_id=session_data["session_id"],
-            domain=DomainEnum(session_data.get("domain", "performance")),
-            observations=parsed_obs,
-            ranked_causes=parsed_causes,
-            is_resolved=session_data.get("is_resolved", False),
-            created_at=session_data.get("created_at", ""),
-            updated_at=session_data.get("updated_at", "")
-        )
+            raw = _IN_MEMORY_SESSIONS.get(session_id)
+            return self._format_session_response(raw) if raw else None
 
     def update_session(
         self,
         session_id: str,
-        observations: Dict[str, Observation],
-        ranked_causes: list[RankedCause],
-        is_resolved: bool = False
-    ) -> Optional[SessionState]:
-        """
-        Updates session state with new observations and ranked causes.
-        """
-        now_str = datetime.now(timezone.utc).isoformat()
-        serialized_obs = {k: v.model_dump() for k, v in observations.items()}
-        serialized_causes = [c.model_dump() for c in ranked_causes]
+        observations: List[Observation],
+        ranked_causes: List[RankedCause],
+        status: str = "in_progress",
+    ) -> Optional[SessionResponse]:
+        """Updates a session's observations, ranked causes, status, and updated_at."""
+        if not session_id or not session_id.strip():
+            return None
 
-        update_payload = {
-            "observations": serialized_obs,
-            "ranked_causes": serialized_causes,
-            "is_resolved": is_resolved,
-            "updated_at": now_str
+        now_iso = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "observations": [o.model_dump() for o in observations],
+            "ranked_causes": [c.model_dump() for c in ranked_causes],
+            "status": status,
+            "updated_at": now_iso,
         }
 
         if self.client:
             try:
-                self.client.table("diagnostic_sessions").update(update_payload).eq("session_id", session_id).execute()
+                res = (
+                    self.client.table("troubleshooting_sessions")
+                    .update(payload)
+                    .eq("session_id", session_id)
+                    .execute()
+                )
+                if res.data and len(res.data) > 0:
+                    return self._format_session_response(res.data[0])
+                return None
             except Exception as e:
-                logger.error(f"Supabase update failed: {e}. Updating in-memory store.")
-                if session_id in _IN_MEMORY_SESSIONS:
-                    _IN_MEMORY_SESSIONS[session_id].update(update_payload)
+                err_msg = str(e)
+                if "22P02" in err_msg or "invalid input syntax for type uuid" in err_msg:
+                    return None
+                raise RuntimeError(
+                    f"Supabase update failed ({type(e).__name__}): {e}."
+                ) from e
         else:
             if session_id in _IN_MEMORY_SESSIONS:
-                _IN_MEMORY_SESSIONS[session_id].update(update_payload)
+                _IN_MEMORY_SESSIONS[session_id].update(payload)
+                return self._format_session_response(_IN_MEMORY_SESSIONS[session_id])
+            return None
 
-        return self.get_session(session_id)
+    # ------------------------------------------------------------------ #
+    #  Internal helpers                                                    #
+    # ------------------------------------------------------------------ #
+
+    def _format_session_response(self, data: dict) -> SessionResponse:
+        obs_raw = data.get("observations", [])
+        causes_raw = data.get("ranked_causes", [])
+
+        if isinstance(obs_raw, dict):
+            obs_list = [Observation(**v) if isinstance(v, dict) else v for v in obs_raw.values()]
+        elif isinstance(obs_raw, list):
+            obs_list = [Observation(**o) if isinstance(o, dict) else o for o in obs_raw]
+        else:
+            obs_list = []
+
+        causes_list = [
+            RankedCause(**c) if isinstance(c, dict) else c
+            for c in (causes_raw or [])
+        ]
+
+        return SessionResponse(
+            session_id=data["session_id"],
+            domain=DomainEnum(data.get("domain", "performance")),
+            observations=obs_list,
+            ranked_causes=causes_list,
+            status=data.get("status", "active"),
+            created_at=data.get("created_at", ""),
+            updated_at=data.get("updated_at", ""),
+        )
