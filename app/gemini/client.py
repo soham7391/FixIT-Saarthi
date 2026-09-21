@@ -1,108 +1,162 @@
 import os
-import json
 import logging
 from typing import List, Optional
+
+from google import genai  # Re-exported for backward-compatibility with tests patching app.gemini.client.genai
 from dotenv import load_dotenv
 
-from google import genai
-from google.genai import types
-
 from app.gemini.schemas import GeminiTextExtraction, GeminiScreenshotExtraction
+from app.gemini.providers import (
+    BaseAIProvider,
+    GeminiProvider,
+    GroqProvider,
+    TransientProviderError
+)
+from app.gemini.safety import (
+    InputSafetyGuard,
+    OutputSafetyGuard,
+    rate_limiter
+)
 from app.schemas.diagnostic import Observation, ObservationSource
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
-MAX_OUTPUT_TOKENS = 300
 
-
-class GeminiAssistant:
+class AIAssistanceService:
     """
-    Assistance Layer for FixIT Saarthi using google-genai SDK.
-    Performs text NLU extraction and Task Manager screenshot OCR parsing.
-    Returns minimal structured data without making diagnoses or ranking causes.
+    AI Reliability & Safety Assistance Layer for FixIT Saarthi.
+    Manages primary (Gemini) and backup (Groq) providers with automatic failover,
+    input safety validation, prompt injection resistance, scope guarding,
+    output structure validation, and in-memory rate limiting.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "").strip()
-        self.model_name = DEFAULT_GEMINI_MODEL
-        self.client = None
+    def __init__(
+        self,
+        primary_provider: Optional[BaseAIProvider] = None,
+        backup_provider: Optional[BaseAIProvider] = None,
+        api_key: Optional[str] = None  # Kept for legacy GeminiAssistant init signature compatibility
+    ):
+        self.primary_provider = primary_provider or GeminiProvider(api_key=api_key)
+        self.backup_provider = backup_provider or GroqProvider()
+        self.model_name = getattr(self.primary_provider, "model_name", "gemini-2.5-flash")
 
-        if self.api_key and self.api_key != "your_key_here":
-            try:
-                self.client = genai.Client(api_key=self.api_key)
-            except Exception as e:
-                logger.warning(f"Failed to initialize google-genai client: {e}")
+    def _has_working_provider_config(self) -> bool:
+        """Returns True if either provider has an initialized client or custom mock instance."""
+        gemini_client = getattr(self.primary_provider, "client", None)
+        groq_client = getattr(self.backup_provider, "client", None)
+        is_custom_primary = not isinstance(self.primary_provider, GeminiProvider)
+        is_custom_backup = not isinstance(self.backup_provider, GroqProvider)
+        return bool(gemini_client or groq_client or is_custom_primary or is_custom_backup)
 
-    def parse_problem_text(self, text: str) -> List[Observation]:
+    def parse_problem_text(
+        self,
+        text: str,
+        client_ip: str = "127.0.0.1",
+        session_id: Optional[str] = None
+    ) -> List[Observation]:
         """
-        Extracts structured observations from natural language user text.
+        Extracts structured observations from user problem statement.
+        Enforces rate limiting, input safety, scope guarding, prompt injection resistance,
+        provider failover (Gemini -> Groq), and output safety validation.
         """
-        if not text or not text.strip():
-            return []
+        # 1. Rate Limiting Check
+        rate_limiter.check(client_ip=client_ip, session_id=session_id)
 
-        if self.client:
+        # 2. Input Safety, Length, Scope Guard, & Prompt Injection Validation
+        validated_text = InputSafetyGuard.validate_text(text)
+
+        extraction: Optional[GeminiTextExtraction] = None
+        last_error: Optional[Exception] = None
+
+        # 3. Attempt Primary Provider (Gemini)
+        try:
+            extraction = self.primary_provider.extract_text(validated_text)
+            logger.info("Successfully extracted text observations via Primary Provider (Gemini).")
+        except TransientProviderError as e:
+            logger.warning(f"Primary provider (Gemini) failed: {e}. Initiating failover to Backup Provider (Groq)...")
+            last_error = e
+
+        # 4. Attempt Backup Provider (Groq) on Primary Failover
+        if extraction is None:
             try:
-                prompt = (
-                    "Extract structured performance symptoms from this text. "
-                    "Valid symptom_key values: high_cpu_usage, high_ram_usage, high_disk_usage, "
-                    "general_slowdown, app_freezing, top_process_name. "
-                    f"Text: \"{text}\""
-                )
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=GeminiTextExtraction,
-                        max_output_tokens=MAX_OUTPUT_TOKENS,
-                        temperature=0.0
-                    )
-                )
-                if response.text:
-                    parsed = GeminiTextExtraction.model_validate_json(response.text)
-                    return self._convert_text_extraction_to_observations(parsed)
-            except Exception as e:
-                logger.warning(f"Gemini text parsing call failed: {e}. Utilizing heuristic fallback.")
+                extraction = self.backup_provider.extract_text(validated_text)
+                logger.info("Successfully extracted text observations via Backup Provider (Groq).")
+            except TransientProviderError as e:
+                logger.warning(f"Backup provider (Groq) failed: {e}.")
+                last_error = e
 
-        # Fallback heuristic parser when API key is missing or call fails
-        return self._heuristic_parse_text(text)
+        # 5. Handle Provider Failures / Heuristic Fallback
+        if extraction is None:
+            heuristic_obs = self._heuristic_parse_text(validated_text)
+            if heuristic_obs:
+                logger.info("Utilizing heuristic text fallback for parsed observations.")
+                return heuristic_obs
+            raise TransientProviderError(f"Both primary (Gemini) and backup (Groq) providers failed: {last_error}")
 
-    def parse_task_manager_screenshot(self, image_bytes: bytes) -> List[Observation]:
+        # 6. Output Safety Validation
+        validated_extraction = OutputSafetyGuard.validate_text_extraction(extraction)
+
+        # 7. Convert to Observation Objects
+        return self._convert_text_extraction_to_observations(validated_extraction)
+
+    def parse_task_manager_screenshot(
+        self,
+        image_bytes: bytes,
+        client_ip: str = "127.0.0.1",
+        session_id: Optional[str] = None,
+        content_type: Optional[str] = "image/png",
+        file_count: int = 1
+    ) -> List[Observation]:
         """
         Analyzes uploaded Task Manager screenshot image bytes.
-        Extracts CPU, RAM, Disk flags and top process name into structured Observations.
+        Enforces rate limiting, size/format validation, single image restriction,
+        provider failover (Gemini -> Groq), and output safety validation.
         """
-        if not image_bytes:
-            return []
+        # 1. Rate Limiting Check
+        rate_limiter.check(client_ip=client_ip, session_id=session_id)
 
-        if self.client:
+        # 2. Input Safety & Image Restrictions
+        validated_bytes = InputSafetyGuard.validate_screenshot(
+            image_bytes=image_bytes,
+            content_type=content_type,
+            file_count=file_count
+        )
+
+        extraction: Optional[GeminiScreenshotExtraction] = None
+        last_error: Optional[Exception] = None
+        mime_type = content_type or "image/png"
+
+        # 3. Attempt Primary Provider (Gemini)
+        try:
+            extraction = self.primary_provider.extract_screenshot(validated_bytes, mime_type=mime_type)
+            logger.info("Successfully extracted screenshot observations via Primary Provider (Gemini).")
+        except TransientProviderError as e:
+            logger.warning(f"Primary provider (Gemini) failed: {e}. Initiating failover to Backup Provider (Groq)...")
+            last_error = e
+
+        # 4. Attempt Backup Provider (Groq) on Primary Failover
+        if extraction is None:
             try:
-                prompt = (
-                    "Extract Task Manager metrics: high_cpu_usage (if CPU >= 80%), "
-                    "high_ram_usage (if Memory >= 80%), high_disk_usage (if Disk >= 85%), "
-                    "and top_process_name."
-                )
-                image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=[prompt, image_part],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=GeminiScreenshotExtraction,
-                        max_output_tokens=MAX_OUTPUT_TOKENS,
-                        temperature=0.0
-                    )
-                )
-                if response.text:
-                    parsed = GeminiScreenshotExtraction.model_validate_json(response.text)
-                    return self._convert_screenshot_extraction_to_observations(parsed)
-            except Exception as e:
-                logger.warning(f"Gemini screenshot parsing call failed: {e}. Utilizing heuristic fallback.")
+                extraction = self.backup_provider.extract_screenshot(validated_bytes, mime_type=mime_type)
+                logger.info("Successfully extracted screenshot observations via Backup Provider (Groq).")
+            except TransientProviderError as e:
+                logger.warning(f"Backup provider (Groq) failed: {e}.")
+                last_error = e
 
-        # Fallback heuristic parser for testing and unconfigured API key
-        return self._heuristic_parse_screenshot(image_bytes)
+        # 5. Handle Provider Failures / Heuristic Fallback
+        if extraction is None:
+            heuristic_obs = self._heuristic_parse_screenshot(validated_bytes)
+            if heuristic_obs:
+                logger.info("Utilizing heuristic screenshot fallback for parsed observations.")
+                return heuristic_obs
+            raise TransientProviderError(f"Both primary (Gemini) and backup (Groq) providers failed: {last_error}")
+
+        # 6. Output Safety Validation
+        validated_extraction = OutputSafetyGuard.validate_screenshot_extraction(extraction)
+
+        # 7. Convert to Observation Objects
+        return self._convert_screenshot_extraction_to_observations(validated_extraction)
 
     def _convert_text_extraction_to_observations(self, extraction: GeminiTextExtraction) -> List[Observation]:
         observations = []
@@ -167,3 +221,7 @@ class GeminiAssistant:
                 Observation(key="top_process_name", value="system_idle.exe", confidence=0.85, source=ObservationSource.SCREENSHOT)
             ]
         return obs
+
+
+# Alias GeminiAssistant to AIAssistanceService for full backward compatibility
+GeminiAssistant = AIAssistanceService
