@@ -1,4 +1,5 @@
 # FixIT Saarthi — AI-Assisted Computer Troubleshooting Expert System
+<img width="1906" height="915" alt="Screenshot 2026-09-28 123949" src="https://github.com/user-attachments/assets/deea2b65-5f59-4b0f-8d11-cd86dd744e5e" />
 
 **FixIT Saarthi** is an AI-assisted computer troubleshooting expert system designed to help users diagnose and resolve PC performance and freezing issues through structured diagnostic reasoning.
 
