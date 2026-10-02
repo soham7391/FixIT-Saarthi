@@ -88,14 +88,14 @@ export const useSystemMetrics = () => {
 
 export const SystemMetricCard: React.FC<{ metrics: MetricItem[]; title?: string }> = ({ metrics, title }) => {
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-slate-200/90 dark:border-zinc-800 rounded-xl p-4 shadow-sm transition-colors flex flex-col justify-between h-full">
+    <div className="bg-white dark:bg-zinc-900 border border-slate-200/90 dark:border-zinc-800 rounded-xl p-4 shadow-sm transition-colors">
       {title && (
         <div className="text-[10px] font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider mb-3 pb-2 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
           <span>{title}</span>
           <span className="text-[9px] font-mono text-slate-300 dark:text-zinc-600">SNAPSHOT</span>
         </div>
       )}
-      <div className="space-y-3 flex-1 flex flex-col justify-around">
+      <div className="space-y-2">
         {metrics.map((m, idx) => {
           const IconComponent = m.icon;
           const isNotAvailable = m.value === 'Not available';
@@ -103,7 +103,7 @@ export const SystemMetricCard: React.FC<{ metrics: MetricItem[]; title?: string 
           return (
             <div
               key={idx}
-              className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-950/60 border border-slate-200/70 dark:border-zinc-800/80 flex flex-col justify-center"
+              className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-950/60 border border-slate-200/70 dark:border-zinc-800/80"
             >
               <div className="flex items-center gap-1.5 mb-1">
                 <IconComponent className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 shrink-0" />

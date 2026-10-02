@@ -27,7 +27,7 @@ export const ProblemInputStep: React.FC<ProblemInputStepProps> = ({
   const { leftMetrics, rightMetrics } = useSystemMetrics();
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5 max-w-6xl mx-auto items-stretch transition-colors">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5 max-w-6xl mx-auto items-start transition-colors">
       {/* Left Column: System Environment Metrics */}
       <div className="md:col-span-1 lg:col-span-3 order-2 lg:order-1">
         <SystemMetricCard metrics={leftMetrics} title="System Environment" />
