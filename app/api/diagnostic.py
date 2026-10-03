@@ -16,7 +16,6 @@ from app.db.supabase import SupabaseSessionManager
 router = APIRouter(prefix="/api/diagnostic", tags=["Diagnostic Engine"])
 
 gemini_assistant = GeminiAssistant()
-evaluator = ExpertEvaluator(domain=DomainEnum.PERFORMANCE)
 ranker = CauseRanker()
 db_manager = SupabaseSessionManager()
 
@@ -166,7 +165,8 @@ def evaluate_diagnostic(request: DiagnosticRequest, http_req: Request):
 
     obs_list = list(accumulated_obs.values())
 
-    raw_evaluations = evaluator.evaluate(obs_list)
+    domain_evaluator = ExpertEvaluator(domain=request.domain)
+    raw_evaluations = domain_evaluator.evaluate(obs_list)
     ranked_causes = ranker.rank_causes(raw_evaluations, accumulated_obs)
 
     # Persist in Supabase if session_id is present

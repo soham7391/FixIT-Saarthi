@@ -13,6 +13,7 @@ class DomainEnum(str, Enum):
     PERFORMANCE = "performance"
     BOOT_FAILURE = "boot_failure"
     NETWORK = "network"
+    DRIVER_PERIPHERAL = "driver_peripheral"
 
 
 class ObservationSource(str, Enum):

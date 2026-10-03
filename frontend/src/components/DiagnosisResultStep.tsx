@@ -32,6 +32,7 @@ export const DiagnosisResultStep: React.FC<DiagnosisResultStepProps> = ({
             </p>
           </div>
         </div>
+
         <button
           onClick={onBackToInputs}
           className="text-xs text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 transition-colors"

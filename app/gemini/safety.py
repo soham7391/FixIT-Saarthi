@@ -23,7 +23,35 @@ ALLOWED_SYMPTOM_KEYS = {
     "thermal_throttling",
     "startup_delay",
     "boot_failure",
-    "network_drop"
+    "network_drop",
+    # Boot / Startup domain keys
+    "slow_boot_time",
+    "stuck_on_logo",
+    "boot_error_screen",
+    "reboot_loop",
+    "slow_desktop_usable",
+    "recent_windows_update",
+    "external_drives_connected",
+    "disk_space_low",
+    "disk_clicking_noise",
+    # Network / Connectivity domain keys
+    "wifi_disabled_airplane",
+    "connected_no_internet",
+    "intermittent_disconnection",
+    "dns_lookup_failure",
+    "vpn_proxy_enabled",
+    "slow_network_speed",
+    "other_devices_working",
+    "single_app_affected",
+    # Driver & Peripheral domain keys
+    "printer_not_detected",
+    "keyboard_mouse_unresponsive",
+    "audio_device_issue",
+    "webcam_unavailable",
+    "bluetooth_connection_failed",
+    "device_failed_after_update",
+    "usb_physical_disconnection",
+    "app_permissions_blocked",
 }
 
 # Prompt Injection Patterns
@@ -51,7 +79,13 @@ COMPUTER_RELEVANCE_KEYWORDS = {
     "power plan", "app", "application", "system", "pc", "laptop", "computer",
     "desktop", "hardware", "software", "usage", "bottleneck", "leak", "high",
     "not responding", "100%", "90%", "80%", "throttling", "hang", "hanging",
-    "service", "background", "saarthi", "fixit"
+    "service", "background", "saarthi", "fixit", "logo", "spinning", "dots",
+    "update", "rollback", "recovery", "safe mode", "usb", "peripheral", "bcd",
+    "dns", "ip", "ethernet", "router", "gateway", "proxy", "vpn", "airplane mode",
+    "flushdns", "ipconfig", "website", "online", "url", "web page",
+    "printer", "keyboard", "mouse", "microphone", "speaker", "audio", "webcam",
+    "camera", "bluetooth", "driver", "headset", "headphone", "device manager",
+    "sound", "mic"
 }
 
 # Known Obvious Unrelated Topics

@@ -7,7 +7,8 @@ export enum SafetyLevel {
 export enum DomainEnum {
   PERFORMANCE = "performance",
   BOOT_FAILURE = "boot_failure",
-  NETWORK = "network"
+  NETWORK = "network",
+  DRIVER_PERIPHERAL = "driver_peripheral"
 }
 
 export enum ObservationSource {
@@ -73,7 +74,7 @@ export type QuestionCardItem = {
   id: string;
   symptomKey: string;
   questionText: string;
-  category: "CPU" | "Memory" | "Disk" | "System" | "Power";
+  category: string;
   description: string;
   type: "boolean" | "select";
   options?: { label: string; value: boolean | string }[];

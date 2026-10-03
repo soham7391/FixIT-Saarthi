@@ -1,9 +1,10 @@
 import React from 'react';
-import { Sun, Moon, RefreshCw, HardDrive, ShieldAlert, Wifi } from 'lucide-react';
+import { Sun, Moon, RefreshCw, HardDrive, ShieldAlert, Wifi, Plug } from 'lucide-react';
 import { DomainEnum } from '../types/diagnostic';
 
 interface NavbarProps {
   currentDomain: DomainEnum;
+  onSelectDomain: (domain: DomainEnum) => void;
   sessionId: string | null;
   onResetSession: () => void;
   theme: 'light' | 'dark';
@@ -12,6 +13,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentDomain,
+  onSelectDomain,
   sessionId,
   onResetSession,
   theme,
@@ -20,7 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="border-b border-slate-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md sticky top-0 z-50 transition-colors">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-15 flex items-center justify-between">
-        {/* Branding Logo - Clean restrained text without heavy badge or icon */}
+        {/* Branding Logo */}
         <div className="flex items-center gap-3">
           <div className="flex flex-col">
             <span className="font-semibold tracking-tight text-slate-900 dark:text-zinc-100 text-base">
@@ -32,12 +34,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Domain Selection Tabs - Clean technical tabs without 'Soon' tags */}
+        {/* Domain Selection Tabs */}
         <div className="hidden md:flex items-center gap-1 p-1 bg-slate-100 dark:bg-zinc-950 rounded-lg border border-slate-200 dark:border-zinc-850">
           <button
+            onClick={() => onSelectDomain(DomainEnum.PERFORMANCE)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               currentDomain === DomainEnum.PERFORMANCE
-                ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-sm border border-slate-200/80 dark:border-zinc-700'
+                ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-sm border border-slate-200/80 dark:border-zinc-700 font-semibold'
                 : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
             }`}
           >
@@ -46,26 +49,44 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           <button
-            disabled
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 dark:text-zinc-600 cursor-not-allowed opacity-60"
-            title="Boot Failure domain currently unavailable"
+            onClick={() => onSelectDomain(DomainEnum.BOOT_FAILURE)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              currentDomain === DomainEnum.BOOT_FAILURE
+                ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-sm border border-slate-200/80 dark:border-zinc-700 font-semibold'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+            }`}
           >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            Boot Failure
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            Boot Failure & Startup
           </button>
 
           <button
-            disabled
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 dark:text-zinc-600 cursor-not-allowed opacity-60"
-            title="Network domain currently unavailable"
+            onClick={() => onSelectDomain(DomainEnum.NETWORK)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              currentDomain === DomainEnum.NETWORK
+                ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-sm border border-slate-200/80 dark:border-zinc-700 font-semibold'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+            }`}
           >
-            <Wifi className="w-3.5 h-3.5" />
-            Network
+            <Wifi className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            Network & Connectivity
+          </button>
+
+          <button
+            onClick={() => onSelectDomain(DomainEnum.DRIVER_PERIPHERAL)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              currentDomain === DomainEnum.DRIVER_PERIPHERAL
+                ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-sm border border-slate-200/80 dark:border-zinc-700 font-semibold'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Plug className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            Driver & Peripherals
           </button>
         </div>
 
-        {/* Right Actions: Session & Theme Toggle */}
-        <div className="flex items-center gap-2.5">
+        {/* Right Actions: Session, Theme Toggle */}
+        <div className="flex items-center gap-2">
           {sessionId && (
             <div className="hidden sm:flex flex-col items-end text-xs mr-1">
               <span className="text-slate-400 dark:text-zinc-500 font-mono text-[10px]">Session</span>

@@ -190,16 +190,81 @@ class AIAssistanceService:
         text_lower = text.lower()
         obs = []
 
+        # Performance symptoms
         if any(w in text_lower for w in ["cpu", "processor", "100% cpu"]):
             obs.append(Observation(key="high_cpu_usage", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
         if any(w in text_lower for w in ["ram", "memory", "leak", "high ram"]):
             obs.append(Observation(key="high_ram_usage", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
         if any(w in text_lower for w in ["disk", "100% disk", "hdd"]):
             obs.append(Observation(key="high_disk_usage", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
-        if any(w in text_lower for w in ["freeze", "freezing", "stuck", "not responding"]):
+        if any(w in text_lower for w in ["freeze", "freezing", "stuck", "not responding"]) and not any(w in text_lower for w in ["boot", "logo"]):
             obs.append(Observation(key="app_freezing", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
-        if any(w in text_lower for w in ["slow", "lag", "sluggish"]):
+        if any(w in text_lower for w in ["slow", "lag", "sluggish"]) and not any(w in text_lower for w in ["start", "boot", "internet", "wifi"]):
             obs.append(Observation(key="general_slowdown", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+
+        # Boot & Startup symptoms
+        if any(w in text_lower for w in ["slow boot", "takes long to start", "boot time", "slow startup"]):
+            obs.append(Observation(key="slow_boot_time", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["stuck on logo", "boot logo", "spinning dots", "black screen"]):
+            obs.append(Observation(key="stuck_on_logo", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["boot error", "bsod", "blue screen", "startup repair"]):
+            obs.append(Observation(key="boot_error_screen", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["reboot loop", "restarts repeatedly", "restarts during boot", "restart loop"]):
+            obs.append(Observation(key="reboot_loop", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["windows update", "recent update", "after update"]):
+            obs.append(Observation(key="recent_windows_update", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["usb", "external drive", "hard drive connected"]):
+            obs.append(Observation(key="external_drives_connected", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["disk space low", "c: drive full", "storage low"]):
+            obs.append(Observation(key="disk_space_low", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["clicking noise", "grinding", "drive noise"]):
+            obs.append(Observation(key="disk_clicking_noise", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+
+        # Network & Connectivity symptoms
+        if any(w in text_lower for w in ["wifi disabled", "airplane mode", "turn on wifi", "wifi toggle", "wi-fi disabled", "wi-fi is off"]):
+            obs.append(Observation(key="wifi_disabled_airplane", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in [
+            "no internet", "connected no internet", "no access", "cannot load", "can't load",
+            "websites won't load", "websites cannot load", "sites won't open", "pages won't load",
+            "websites fail", "wifi connected but", "wi-fi connected but", "connected but"
+        ]):
+            obs.append(Observation(key="connected_no_internet", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["disconnects", "drops", "weak signal", "intermittent", "keeps cutting out", "connection drops"]):
+            obs.append(Observation(key="intermittent_disconnection", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["dns", "dns_probe", "server not found", "cannot reach website", "name not resolved", "dns error"]):
+            obs.append(Observation(key="dns_lookup_failure", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["vpn", "proxy"]):
+            obs.append(Observation(key="vpn_proxy_enabled", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["slow speed", "slow internet", "high ping", "latency", "slow connection"]):
+            obs.append(Observation(key="slow_network_speed", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in [
+            "other devices work", "phone works", "other laptop works",
+            "other devices", "other device", "other phones", "other computers",
+            "rest of the devices", "every other device", "all other devices",
+            "same wi-fi", "same wifi"
+        ]):
+            obs.append(Observation(key="other_devices_working", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["single app", "one browser", "only chrome", "only one app", "one application"]):
+            obs.append(Observation(key="single_app_affected", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+
+        # Driver & Peripheral symptoms
+        if any(w in text_lower for w in ["printer", "print", "printing", "offline printer", "printer not found"]):
+            obs.append(Observation(key="printer_not_detected", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["keyboard", "mouse", "cursor", "trackpad", "typing", "not responding", "unresponsive key"]):
+            if any(w in text_lower for w in ["keyboard", "mouse", "cursor", "trackpad"]):
+                obs.append(Observation(key="keyboard_mouse_unresponsive", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["audio", "speaker", "sound", "microphone", "mic", "headset", "headphone", "no sound", "no audio"]):
+            obs.append(Observation(key="audio_device_issue", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["webcam", "camera", "video feed", "cam not working"]):
+            obs.append(Observation(key="webcam_unavailable", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["bluetooth", "bt device", "pairing", "pair bluetooth"]):
+            obs.append(Observation(key="bluetooth_connection_failed", value=True, confidence=0.9, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["driver update", "after update", "stopped working after update", "windows update broke", "driver update broke"]):
+            obs.append(Observation(key="device_failed_after_update", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["unplugged", "usb cable", "usb port", "disconnected usb", "loose cable", "not plugged in"]):
+            obs.append(Observation(key="usb_physical_disconnection", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
+        if any(w in text_lower for w in ["privacy settings", "permission blocked", "camera access blocked", "microphone permission"]):
+            obs.append(Observation(key="app_permissions_blocked", value=True, confidence=0.85, source=ObservationSource.USER_INPUT))
 
         return obs
 

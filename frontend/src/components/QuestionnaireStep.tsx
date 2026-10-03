@@ -1,15 +1,17 @@
 import React from 'react';
 import { ArrowLeft, ArrowRight, Check, X, HelpCircle } from 'lucide-react';
 import type { QuestionCardItem } from '../types/diagnostic';
+import { DomainEnum } from '../types/diagnostic';
 
 interface QuestionnaireStepProps {
+  currentDomain?: DomainEnum;
   answers: Record<string, boolean | undefined>;
   onAnswerChange: (symptomKey: string, value: boolean | undefined) => void;
   onBack: () => void;
   onNext: () => void;
 }
 
-const QUESTION_CARDS: QuestionCardItem[] = [
+const PERFORMANCE_QUESTION_CARDS: QuestionCardItem[] = [
   {
     id: 'q_cpu',
     symptomKey: 'high_cpu_usage',
@@ -60,13 +62,183 @@ const QUESTION_CARDS: QuestionCardItem[] = [
   }
 ];
 
+const BOOT_QUESTION_CARDS: QuestionCardItem[] = [
+  {
+    id: 'q_slow_boot',
+    symptomKey: 'slow_boot_time',
+    questionText: 'Is your computer taking over 2-5 minutes to boot into Windows?',
+    category: 'Boot',
+    description: 'Extended startup delay before reaching the login screen or desktop.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_stuck_logo',
+    symptomKey: 'stuck_on_logo',
+    questionText: 'Is your system stuck on the manufacturer logo or spinning dots screen?',
+    category: 'Boot',
+    description: 'Windows logo or UEFI splash screen hangs indefinitely during startup.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_boot_error',
+    symptomKey: 'boot_error_screen',
+    questionText: 'Does Windows display a boot error screen, BSOD, or automatic repair prompt?',
+    category: 'System Error',
+    description: 'Startup failure error screens, blue screen crash codes, or BCD boot errors.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_reboot_loop',
+    symptomKey: 'reboot_loop',
+    questionText: 'Is your PC repeatedly restarting before reaching the login screen?',
+    category: 'Startup',
+    description: 'Continuous reboot loops during early system initialization.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_recent_update',
+    symptomKey: 'recent_windows_update',
+    questionText: 'Did this boot issue start immediately after a recent Windows update or driver install?',
+    category: 'OS Update',
+    description: 'Pending or failed updates interfering with Windows startup configuration.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_external_drives',
+    symptomKey: 'external_drives_connected',
+    questionText: 'Are there any external USB hard drives, flash drives, or cards attached during startup?',
+    category: 'Hardware',
+    description: 'External USB media conflicting with BIOS/UEFI boot device sequence.',
+    type: 'boolean'
+  }
+];
+
+const NETWORK_QUESTION_CARDS: QuestionCardItem[] = [
+  {
+    id: 'q_wifi_disabled',
+    symptomKey: 'wifi_disabled_airplane',
+    questionText: 'Is Wi-Fi disabled or Airplane Mode turned on in your system settings?',
+    category: 'Wi-Fi',
+    description: 'Wi-Fi adapter switched off in Settings or Airplane Mode blocking all wireless connections.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_connected_no_internet',
+    symptomKey: 'connected_no_internet',
+    questionText: 'Are you connected to Wi-Fi but unable to access websites or online services?',
+    category: 'Internet',
+    description: 'Device shows Wi-Fi connected but pages fail to load — possible DNS, gateway, or ISP issue.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_intermittent',
+    symptomKey: 'intermittent_disconnection',
+    questionText: 'Does your connection drop frequently or show a weak / unstable Wi-Fi signal?',
+    category: 'Signal',
+    description: 'Frequent disconnections, signal drops, or Wi-Fi cutting out at intervals.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_dns',
+    symptomKey: 'dns_lookup_failure',
+    questionText: 'Do websites fail with "Server Not Found", "DNS_PROBE_FINISHED", or similar DNS errors?',
+    category: 'DNS',
+    description: 'DNS resolver failures preventing domain name resolution for websites.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_vpn',
+    symptomKey: 'vpn_proxy_enabled',
+    questionText: 'Is VPN or proxy software currently active on this device?',
+    category: 'VPN / Proxy',
+    description: 'Active VPN or proxy routing can block, slow, or redirect internet traffic.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_other_devices',
+    symptomKey: 'other_devices_working',
+    questionText: 'Do other devices on the same Wi-Fi network have working internet access?',
+    category: 'Network',
+    description: 'Helps isolate whether the issue is device-specific or affects the entire network / router.',
+    type: 'boolean'
+  }
+];
+
+const DRIVER_QUESTION_CARDS: QuestionCardItem[] = [
+  {
+    id: 'q_printer',
+    symptomKey: 'printer_not_detected',
+    questionText: 'Is your printer showing as Offline, not recognized, or failing to print jobs?',
+    category: 'Printer',
+    description: 'Printer spooler error, USB cable disconnect, or offline printer status.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_keyboard_mouse',
+    symptomKey: 'keyboard_mouse_unresponsive',
+    questionText: 'Is your keyboard, mouse, or trackpad completely unresponsive to keypresses or clicks?',
+    category: 'Input Device',
+    description: 'Unresponsive USB/wireless keyboard, mouse freeze, or dead battery.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_audio',
+    symptomKey: 'audio_device_issue',
+    questionText: 'Are your speakers producing no sound or is your microphone failing to record audio?',
+    category: 'Audio',
+    description: 'Muted audio, wrong default output/input device, or headset mic issue.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_webcam',
+    symptomKey: 'webcam_unavailable',
+    questionText: 'Is your webcam showing a black screen, error code, or "No Camera Found"?',
+    category: 'Webcam',
+    description: 'Webcam hardware disabled, disconnected, or blocked by privacy toggle.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_bluetooth',
+    symptomKey: 'bluetooth_connection_failed',
+    questionText: 'Is your Bluetooth device failing to connect, pair, or dropping connection?',
+    category: 'Bluetooth',
+    description: 'Bluetooth radio turned off, stale pairing cache, or signal interference.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_driver_update',
+    symptomKey: 'device_failed_after_update',
+    questionText: 'Did this peripheral stop working immediately after a Windows or driver update?',
+    category: 'Driver Update',
+    description: 'Incompatible driver version installed during a recent system update.',
+    type: 'boolean'
+  },
+  {
+    id: 'q_privacy_blocked',
+    symptomKey: 'app_permissions_blocked',
+    questionText: 'Are Windows privacy settings blocking applications from accessing camera or microphone?',
+    category: 'Privacy Settings',
+    description: 'Windows 11/10 privacy toggle preventing software access to media hardware.',
+    type: 'boolean'
+  }
+];
+
 export const QuestionnaireStep: React.FC<QuestionnaireStepProps> = ({
+  currentDomain = DomainEnum.PERFORMANCE,
   answers,
   onAnswerChange,
   onBack,
   onNext
 }) => {
-  const answeredCount = Object.values(answers).filter((v) => v !== undefined).length;
+  const questionCards =
+    currentDomain === DomainEnum.BOOT_FAILURE
+      ? BOOT_QUESTION_CARDS
+      : currentDomain === DomainEnum.NETWORK
+      ? NETWORK_QUESTION_CARDS
+      : currentDomain === DomainEnum.DRIVER_PERIPHERAL
+      ? DRIVER_QUESTION_CARDS
+      : PERFORMANCE_QUESTION_CARDS;
+  const answeredCount = Object.keys(answers).filter((k) => questionCards.some((c) => c.symptomKey === k) && answers[k] !== undefined).length;
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm max-w-4xl mx-auto transition-colors">
@@ -74,20 +246,26 @@ export const QuestionnaireStep: React.FC<QuestionnaireStepProps> = ({
       <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100 dark:border-zinc-800">
         <div>
           <h2 className="text-base font-semibold text-slate-900 dark:text-zinc-100">
-            Diagnostic Question Cards
+            {currentDomain === DomainEnum.BOOT_FAILURE
+              ? 'Boot & Startup Question Cards'
+              : currentDomain === DomainEnum.NETWORK
+              ? 'Network & Connectivity Question Cards'
+              : currentDomain === DomainEnum.DRIVER_PERIPHERAL
+              ? 'Driver & Peripheral Question Cards'
+              : 'Diagnostic Question Cards'}
           </h2>
           <p className="text-xs text-slate-500 dark:text-zinc-400">
             Answer symptom questions to refine cause ranking accuracy.
           </p>
         </div>
         <div className="px-2.5 py-1 rounded bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs text-slate-700 dark:text-zinc-300 font-mono">
-          {answeredCount}/{QUESTION_CARDS.length} Answered
+          {answeredCount}/{questionCards.length} Answered
         </div>
       </div>
 
       {/* Grid of Question Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {QUESTION_CARDS.map((card) => {
+        {questionCards.map((card) => {
           const currentVal = answers[card.symptomKey];
 
           return (
@@ -118,7 +296,7 @@ export const QuestionnaireStep: React.FC<QuestionnaireStepProps> = ({
                 <button
                   type="button"
                   onClick={() => onAnswerChange(card.symptomKey, true)}
-                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium border transition-all ${
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium border transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
                     currentVal === true
                       ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                       : 'bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700'
@@ -131,7 +309,7 @@ export const QuestionnaireStep: React.FC<QuestionnaireStepProps> = ({
                 <button
                   type="button"
                   onClick={() => onAnswerChange(card.symptomKey, false)}
-                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium border transition-all ${
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium border transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-500/50 ${
                     currentVal === false
                       ? 'bg-slate-800 dark:bg-zinc-700 text-white border-slate-800 dark:border-zinc-700 shadow-sm'
                       : 'bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700'
@@ -144,13 +322,14 @@ export const QuestionnaireStep: React.FC<QuestionnaireStepProps> = ({
                 <button
                   type="button"
                   onClick={() => onAnswerChange(card.symptomKey, undefined)}
-                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium border transition-all ${
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium border transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-zinc-500 ${
                     currentVal === undefined
-                      ? 'bg-slate-200 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border-slate-300 dark:border-zinc-700 font-semibold'
-                      : 'bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-500 border-slate-200 dark:border-zinc-800'
+                      ? 'bg-slate-200 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 border-slate-300 dark:border-zinc-600 font-semibold shadow-xs ring-1 ring-slate-300 dark:ring-zinc-700'
+                      : 'bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-800'
                   }`}
+                  title="Skip this question without answering"
                 >
-                  <HelpCircle className="w-3.5 h-3.5" />
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
                   Skip
                 </button>
               </div>

@@ -1,6 +1,9 @@
 from typing import List, Dict, Any
 from app.schemas.diagnostic import Observation, DomainEnum
 from app.knowledge_base.performance import PERFORMANCE_CAUSES, PERFORMANCE_SYMPTOMS
+from app.knowledge_base.boot import BOOT_CAUSES, BOOT_SYMPTOMS
+from app.knowledge_base.network import NETWORK_CAUSES, NETWORK_SYMPTOMS
+from app.knowledge_base.driver import DRIVER_CAUSES, DRIVER_SYMPTOMS
 
 
 class ExpertEvaluator:
@@ -15,14 +18,22 @@ class ExpertEvaluator:
         self.symptoms_def = self._load_symptoms_def(domain)
 
     def _load_causes(self, domain: DomainEnum) -> List[Dict[str, Any]]:
-        if domain == DomainEnum.PERFORMANCE:
-            return PERFORMANCE_CAUSES
-        return []
+        if domain == DomainEnum.BOOT_FAILURE:
+            return BOOT_CAUSES
+        elif domain == DomainEnum.NETWORK:
+            return NETWORK_CAUSES
+        elif domain == DomainEnum.DRIVER_PERIPHERAL:
+            return DRIVER_CAUSES
+        return PERFORMANCE_CAUSES
 
     def _load_symptoms_def(self, domain: DomainEnum) -> Dict[str, Dict[str, Any]]:
-        if domain == DomainEnum.PERFORMANCE:
-            return PERFORMANCE_SYMPTOMS
-        return {}
+        if domain == DomainEnum.BOOT_FAILURE:
+            return BOOT_SYMPTOMS
+        elif domain == DomainEnum.NETWORK:
+            return NETWORK_SYMPTOMS
+        elif domain == DomainEnum.DRIVER_PERIPHERAL:
+            return DRIVER_SYMPTOMS
+        return PERFORMANCE_SYMPTOMS
 
     def parse_symptom_value(self, obs: Observation) -> bool:
         """
@@ -42,7 +53,7 @@ class ExpertEvaluator:
             return val > 0
         if isinstance(val, str):
             val_lower = val.strip().lower()
-            return val_lower in ["true", "yes", "high", "active", "stuck", "freezing"]
+            return val_lower in ["true", "yes", "high", "active", "stuck", "freezing", "slow", "error", "loop", "disabled", "disconnected", "failing"]
         return bool(val)
 
     def evaluate(self, observations: List[Observation]) -> List[Dict[str, Any]]:

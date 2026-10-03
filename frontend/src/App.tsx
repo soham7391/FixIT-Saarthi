@@ -10,6 +10,7 @@ import { TroubleshootingGuideStep } from './components/TroubleshootingGuideStep'
 import { api, ApiError } from './api/client';
 import { DomainEnum, ObservationSource } from './types/diagnostic';
 import type { Observation, RankedCause, DiagnosticRequest } from './types/diagnostic';
+import { detectDomainIntent } from './utils/domainIntent';
 
 export const App: React.FC = () => {
   // Theme State (Light / Dark mode persisted in localStorage)
@@ -36,7 +37,7 @@ export const App: React.FC = () => {
   };
 
   // Session & Domain State
-  const [currentDomain] = useState<DomainEnum>(DomainEnum.PERFORMANCE);
+  const [currentDomain, setCurrentDomain] = useState<DomainEnum>(DomainEnum.PERFORMANCE);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Workflow Progression (Step 1-5)
@@ -57,23 +58,109 @@ export const App: React.FC = () => {
   // Status & Error States
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  // Domain suggestion when detected intent differs from selected domain
+  const [suggestedDomain, setSuggestedDomain] = useState<DomainEnum | null>(null);
 
-  // Initialize Session on mount
+  // Initialize Session / Restore Shared Session on mount
   useEffect(() => {
-    const initSession = async () => {
-      try {
-        const session = await api.createSession(currentDomain);
-        setSessionId(session.session_id);
-      } catch (err) {
-        console.warn('Could not initialize Supabase session:', err);
+    const initOrRestoreSession = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sharedSessionId = urlParams.get('session_id');
+
+      if (sharedSessionId && sharedSessionId.trim()) {
+        setIsLoading(true);
+        setError(null);
+        try {
+          const session = await api.getSession(sharedSessionId.trim());
+          setSessionId(session.session_id);
+          setCurrentDomain(session.domain || DomainEnum.PERFORMANCE);
+          setProcessedObservations(session.observations || []);
+          setRankedCauses(session.ranked_causes || []);
+
+          // Populate answers if questionnaire observations exist
+          if (session.observations && session.observations.length > 0) {
+            const restoredAnswers: Record<string, boolean | undefined> = {};
+            session.observations.forEach((obs) => {
+              if (typeof obs.value === 'boolean') {
+                restoredAnswers[obs.key] = obs.value;
+              }
+            });
+            setAnswers(restoredAnswers);
+          }
+
+          // Restore workflow step based on saved state
+          if (session.ranked_causes && session.ranked_causes.length > 0) {
+            setSelectedCause(session.ranked_causes[0]);
+            setCurrentStep(session.status === 'resolved' ? 5 : 4);
+          } else if (session.observations && session.observations.length > 0) {
+            setCurrentStep(2);
+          } else {
+            setCurrentStep(1);
+          }
+        } catch (err) {
+          // Clean up invalid or expired session query param from address bar
+          window.history.replaceState({}, '', window.location.pathname);
+          const detail = err instanceof ApiError ? err.detail : 'The shared troubleshooting session could not be loaded.';
+          setError(`${detail} A new session has been started.`);
+
+          // Fallback to creating a new session
+          try {
+            const newSession = await api.createSession(currentDomain);
+            setSessionId(newSession.session_id);
+          } catch {
+            setSessionId(null);
+          }
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // No shared session ID: create new active session
+        try {
+          const session = await api.createSession(currentDomain);
+          setSessionId(session.session_id);
+        } catch (err) {
+          console.warn('Could not initialize Supabase session:', err);
+        }
       }
     };
-    initSession();
+
+    initOrRestoreSession();
   }, [currentDomain]);
+
+  const handleSelectDomain = async (domain: DomainEnum) => {
+    if (domain === currentDomain) return;
+    setCurrentDomain(domain);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const session = await api.createSession(domain);
+      setSessionId(session.session_id);
+    } catch {
+      setSessionId(null);
+    } finally {
+      setTextInput('');
+      setAnswers({});
+      setScreenshotBase64(null);
+      setExtractedTextObs([]);
+      setExtractedScreenshotObs([]);
+      setProcessedObservations([]);
+      setRankedCauses([]);
+      setSelectedCause(null);
+      setSuggestedDomain(null);
+      setCurrentStep(1);
+      setIsLoading(false);
+    }
+  };
 
   const handleResetSession = async () => {
     setIsLoading(true);
     setError(null);
+
+    // Clear URL search params if any
+    if (window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     try {
       const session = await api.createSession(currentDomain);
       setSessionId(session.session_id);
@@ -88,6 +175,7 @@ export const App: React.FC = () => {
       setProcessedObservations([]);
       setRankedCauses([]);
       setSelectedCause(null);
+      setSuggestedDomain(null);
       setCurrentStep(1);
       setIsLoading(false);
     }
@@ -96,6 +184,7 @@ export const App: React.FC = () => {
   // Out-of-Domain Scope Guard & Internal AI Text Extraction
   const handleProceedFromProblemStep = async () => {
     const trimmed = textInput.trim();
+    setSuggestedDomain(null); // clear any previous suggestion
     if (!trimmed) {
       setError(null);
       setCurrentStep(2);
@@ -109,7 +198,15 @@ export const App: React.FC = () => {
       const obs = await api.parseText(trimmed);
       setExtractedTextObs(obs);
       setError(null);
-      setCurrentStep(2); // Proceed to Questions only on valid domain!
+
+      // Domain-intent detection: check if text clearly belongs to a different domain
+      const detected = detectDomainIntent(trimmed);
+      if (detected && detected !== currentDomain) {
+        // Show suggestion banner — do NOT advance step yet
+        setSuggestedDomain(detected);
+      } else {
+        setCurrentStep(2); // proceed normally
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         const lowerDetail = err.detail.toLowerCase();
@@ -129,6 +226,39 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /**
+   * User accepts the domain suggestion: switch domain, create new session,
+   * preserve the text input, then advance to questions.
+   */
+  const handleAcceptDomainSuggestion = async (domain: DomainEnum) => {
+    setSuggestedDomain(null);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const session = await api.createSession(domain);
+      setSessionId(session.session_id);
+      setCurrentDomain(domain);
+      // Re-parse text under new domain to get domain-relevant observations
+      const obs = await api.parseText(textInput.trim());
+      setExtractedTextObs(obs);
+      setAnswers({});
+      setCurrentStep(2);
+    } catch {
+      // If anything fails, still switch domain and proceed
+      setCurrentDomain(domain);
+      setAnswers({});
+      setCurrentStep(2);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /** User dismisses the suggestion: keep current domain and proceed to questions. */
+  const handleDismissDomainSuggestion = () => {
+    setSuggestedDomain(null);
+    setCurrentStep(2);
   };
 
   // Diagnostic Questionnaire Handlers
@@ -204,6 +334,7 @@ export const App: React.FC = () => {
       {/* Navbar Header */}
       <Navbar
         currentDomain={currentDomain}
+        onSelectDomain={handleSelectDomain}
         sessionId={sessionId}
         onResetSession={handleResetSession}
         theme={theme}
@@ -221,16 +352,21 @@ export const App: React.FC = () => {
         {/* Workflow Steps */}
         {currentStep === 1 && (
           <ProblemInputStep
+            currentDomain={currentDomain}
             textInput={textInput}
-            onChangeText={setTextInput}
+            onChangeText={(t) => { setTextInput(t); setSuggestedDomain(null); }}
             isLoading={isLoading}
             error={error}
             onProceed={handleProceedFromProblemStep}
+            suggestedDomain={suggestedDomain}
+            onAcceptSuggestion={handleAcceptDomainSuggestion}
+            onDismissSuggestion={handleDismissDomainSuggestion}
           />
         )}
 
         {currentStep === 2 && (
           <QuestionnaireStep
+            currentDomain={currentDomain}
             answers={answers}
             onAnswerChange={handleAnswerChange}
             onBack={() => setCurrentStep(1)}

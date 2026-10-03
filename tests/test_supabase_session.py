@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
@@ -138,6 +139,35 @@ def test_session_api_missing_handling():
     err_data = res.json()
     assert "detail" in err_data
     assert "not found" in err_data["detail"].lower()
+
+
+def test_session_api_expired_handling():
+    """
+    Tests GET /api/session/{session_id} with expired session (>24 hours old).
+    Expects HTTP 410 Gone error response.
+    """
+    create_res = client.post("/api/session", json={"domain": "performance"})
+    session_id = create_res.json()["session_id"]
+
+    # Manually backdate created_at in session manager store to 25 hours ago
+    from app.api.session import db_manager
+    old_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+    if session_id in db_manager._IN_MEMORY_SESSIONS if hasattr(db_manager, "_IN_MEMORY_SESSIONS") else False:
+        db_manager._IN_MEMORY_SESSIONS[session_id]["created_at"] = old_time
+    elif hasattr(db_manager, "get_session"):
+        session_obj = db_manager.get_session(session_id)
+        if session_obj:
+            session_obj.created_at = old_time
+
+    # Attempt to fetch expired session
+    with patch("app.api.session.db_manager.get_session") as mock_get:
+        mock_session = MagicMock()
+        mock_session.created_at = old_time
+        mock_get.return_value = mock_session
+
+        res = client.get(f"/api/session/{session_id}")
+        assert res.status_code == 410
+        assert "expired" in res.json()["detail"].lower()
 
 
 def test_diagnostic_persistence_integration():
