@@ -1,6 +1,7 @@
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
 from app.schemas.diagnostic import SessionCreateRequest, SessionResponse
 from app.db.supabase import SupabaseSessionManager
 
@@ -70,3 +71,37 @@ def get_session(session_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving session details."
         )
+
+
+class SessionStatusPatchRequest(BaseModel):
+    status: str = Field("resolved", description="Session status")
+
+
+@router.patch("/{session_id}", response_model=SessionResponse)
+def update_session_status(session_id: str, payload: SessionStatusPatchRequest):
+    """
+    Updates the status of a troubleshooting session (e.g. to 'resolved').
+    """
+    if not session_id or not session_id.strip():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session ID cannot be empty."
+        )
+    session = db_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session '{session_id}' not found."
+        )
+    updated = db_manager.update_session(
+        session_id=session_id,
+        observations=session.observations,
+        ranked_causes=session.ranked_causes,
+        status=payload.status
+    )
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update session status."
+        )
+    return updated

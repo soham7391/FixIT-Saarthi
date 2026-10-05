@@ -6,6 +6,7 @@ import { QuestionnaireStep } from './components/QuestionnaireStep';
 import { ScreenshotUploadStep } from './components/ScreenshotUploadStep';
 import { DiagnosisResultStep } from './components/DiagnosisResultStep';
 import { TroubleshootingGuideStep } from './components/TroubleshootingGuideStep';
+import { DiagnosisReportModal } from './components/DiagnosisReportModal';
 
 import { api, ApiError } from './api/client';
 import { DomainEnum, ObservationSource } from './types/diagnostic';
@@ -55,13 +56,59 @@ export const App: React.FC = () => {
   const [rankedCauses, setRankedCauses] = useState<RankedCause[]>([]);
   const [selectedCause, setSelectedCause] = useState<RankedCause | null>(null);
 
+  // Report & Resolution States
+  const [isResolved, setIsResolved] = useState<boolean>(false);
+  const [resolvedCompletedSteps, setResolvedCompletedSteps] = useState<Record<number, boolean>>({});
+  const [resolvedAtTimestamp, setResolvedAtTimestamp] = useState<string>('');
+  const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
+
   // Status & Error States
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   // Domain suggestion when detected intent differs from selected domain
   const [suggestedDomain, setSuggestedDomain] = useState<DomainEnum | null>(null);
 
-  // Initialize Session / Restore Shared Session on mount
+  const STORAGE_KEY = 'fixit_saarthi_active_state_v1';
+
+  // Auto-sync transient UI state to sessionStorage for seamless browser refresh
+  useEffect(() => {
+    if (sessionId) {
+      try {
+        sessionStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            sessionId,
+            currentDomain,
+            currentStep,
+            textInput,
+            answers,
+            processedObservations,
+            rankedCauses,
+            selectedCause,
+            isResolved,
+            resolvedCompletedSteps,
+            resolvedAtTimestamp
+          })
+        );
+      } catch {
+        // Storage full or unavailable
+      }
+    }
+  }, [
+    sessionId,
+    currentDomain,
+    currentStep,
+    textInput,
+    answers,
+    processedObservations,
+    rankedCauses,
+    selectedCause,
+    isResolved,
+    resolvedCompletedSteps,
+    resolvedAtTimestamp
+  ]);
+
+  // Initialize Session / Restore Session (from URL query param or sessionStorage) on mount
   useEffect(() => {
     const initOrRestoreSession = async () => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -77,7 +124,6 @@ export const App: React.FC = () => {
           setProcessedObservations(session.observations || []);
           setRankedCauses(session.ranked_causes || []);
 
-          // Populate answers if questionnaire observations exist
           if (session.observations && session.observations.length > 0) {
             const restoredAnswers: Record<string, boolean | undefined> = {};
             session.observations.forEach((obs) => {
@@ -88,22 +134,21 @@ export const App: React.FC = () => {
             setAnswers(restoredAnswers);
           }
 
-          // Restore workflow step based on saved state
           if (session.ranked_causes && session.ranked_causes.length > 0) {
             setSelectedCause(session.ranked_causes[0]);
-            setCurrentStep(session.status === 'resolved' ? 5 : 4);
+            const isRes = session.status === 'resolved';
+            setIsResolved(isRes);
+            setCurrentStep(isRes ? 5 : 4);
           } else if (session.observations && session.observations.length > 0) {
             setCurrentStep(2);
           } else {
             setCurrentStep(1);
           }
         } catch (err) {
-          // Clean up invalid or expired session query param from address bar
           window.history.replaceState({}, '', window.location.pathname);
           const detail = err instanceof ApiError ? err.detail : 'The shared troubleshooting session could not be loaded.';
           setError(`${detail} A new session has been started.`);
 
-          // Fallback to creating a new session
           try {
             const newSession = await api.createSession(currentDomain);
             setSessionId(newSession.session_id);
@@ -114,7 +159,33 @@ export const App: React.FC = () => {
           setIsLoading(false);
         }
       } else {
-        // No shared session ID: create new active session
+        // Check sessionStorage for active session state on browser refresh
+        const rawSaved = sessionStorage.getItem(STORAGE_KEY);
+        if (rawSaved) {
+          try {
+            const saved = JSON.parse(rawSaved);
+            if (saved && saved.sessionId) {
+              // Verify session is still valid with backend
+              const session = await api.getSession(saved.sessionId);
+              setSessionId(session.session_id);
+              setCurrentDomain(saved.currentDomain || session.domain || DomainEnum.PERFORMANCE);
+              setTextInput(saved.textInput || '');
+              setAnswers(saved.answers || {});
+              setProcessedObservations(session.observations && session.observations.length > 0 ? session.observations : (saved.processedObservations || []));
+              setRankedCauses(session.ranked_causes && session.ranked_causes.length > 0 ? session.ranked_causes : (saved.rankedCauses || []));
+              setSelectedCause(saved.selectedCause || (session.ranked_causes && session.ranked_causes.length > 0 ? session.ranked_causes[0] : null));
+              setIsResolved(saved.isResolved || session.status === 'resolved');
+              setResolvedCompletedSteps(saved.resolvedCompletedSteps || {});
+              setResolvedAtTimestamp(saved.resolvedAtTimestamp || session.updated_at || '');
+              setCurrentStep(saved.currentStep || 1);
+              return;
+            }
+          } catch {
+            sessionStorage.removeItem(STORAGE_KEY);
+          }
+        }
+
+        // No stored state or invalid: create new active session
         try {
           const session = await api.createSession(currentDomain);
           setSessionId(session.session_id);
@@ -125,10 +196,11 @@ export const App: React.FC = () => {
     };
 
     initOrRestoreSession();
-  }, [currentDomain]);
+  }, []);
 
   const handleSelectDomain = async (domain: DomainEnum) => {
     if (domain === currentDomain) return;
+    sessionStorage.removeItem(STORAGE_KEY);
     setCurrentDomain(domain);
     setIsLoading(true);
     setError(null);
@@ -147,6 +219,9 @@ export const App: React.FC = () => {
       setRankedCauses([]);
       setSelectedCause(null);
       setSuggestedDomain(null);
+      setIsResolved(false);
+      setResolvedCompletedSteps({});
+      setResolvedAtTimestamp('');
       setCurrentStep(1);
       setIsLoading(false);
     }
@@ -155,8 +230,8 @@ export const App: React.FC = () => {
   const handleResetSession = async () => {
     setIsLoading(true);
     setError(null);
+    sessionStorage.removeItem(STORAGE_KEY);
 
-    // Clear URL search params if any
     if (window.location.search) {
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -176,6 +251,9 @@ export const App: React.FC = () => {
       setRankedCauses([]);
       setSelectedCause(null);
       setSuggestedDomain(null);
+      setIsResolved(false);
+      setResolvedCompletedSteps({});
+      setResolvedAtTimestamp('');
       setCurrentStep(1);
       setIsLoading(false);
     }
@@ -184,10 +262,10 @@ export const App: React.FC = () => {
   // Out-of-Domain Scope Guard & Internal AI Text Extraction
   const handleProceedFromProblemStep = async () => {
     const trimmed = textInput.trim();
-    setSuggestedDomain(null); // clear any previous suggestion
+    setSuggestedDomain(null);
     if (!trimmed) {
-      setError(null);
-      setCurrentStep(2);
+      setError("Please describe your computer problem before continuing.");
+      setCurrentStep(1);
       return;
     }
 
@@ -329,6 +407,25 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleConfirmResolved = async (completedStepsMap: Record<number, boolean>) => {
+    setIsResolved(true);
+    setResolvedCompletedSteps(completedStepsMap);
+    const nowIso = new Date().toISOString();
+    setResolvedAtTimestamp(nowIso);
+    if (sessionId) {
+      try {
+        await api.updateSessionStatus(sessionId, 'resolved');
+      } catch (err) {
+        console.warn('Failed to update session status on backend:', err);
+      }
+    }
+  };
+
+  const handleOpenReport = (completedStepsMap: Record<number, boolean>) => {
+    setResolvedCompletedSteps(completedStepsMap);
+    setIsReportOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 flex flex-col font-sans transition-colors duration-200">
       {/* Navbar Header */}
@@ -406,9 +503,27 @@ export const App: React.FC = () => {
             onSelectOtherCause={(cause) => setSelectedCause(cause)}
             onBackToDiagnosis={() => setCurrentStep(4)}
             onResetSession={handleResetSession}
+            onConfirmResolved={handleConfirmResolved}
+            onOpenReport={handleOpenReport}
+            isResolvedInitial={isResolved}
           />
         )}
       </main>
+
+      {/* Diagnosis Report Modal */}
+      <DiagnosisReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        sessionId={sessionId}
+        domain={currentDomain}
+        problemDescription={textInput}
+        answers={answers}
+        processedObservations={processedObservations}
+        rankedCauses={rankedCauses}
+        selectedCause={selectedCause}
+        completedSteps={resolvedCompletedSteps}
+        resolvedAt={resolvedAtTimestamp || new Date().toISOString()}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 py-4 text-center text-xs text-slate-500 dark:text-zinc-500">

@@ -38,8 +38,8 @@ describe('detectDomainIntent', () => {
     expect(detectDomainIntent(text)).toBe(DomainEnum.BOOT_FAILURE);
   });
 
-  it('detects boot intent for a BSOD description', () => {
-    const text = 'Windows shows a bsod blue screen and then goes into startup repair.';
+  it('detects boot intent for the final-viva demo sentence entered under driver domain', () => {
+    const text = 'System gets stuck on manufacturer logo screen with spinning dots.';
     expect(detectDomainIntent(text)).toBe(DomainEnum.BOOT_FAILURE);
   });
 

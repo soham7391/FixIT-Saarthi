@@ -8,7 +8,8 @@ import {
   RefreshCw,
   Check,
   RotateCcw,
-  HelpCircle
+  HelpCircle,
+  FileText
 } from 'lucide-react';
 import { SafetyLevel } from '../types/diagnostic';
 import type { RankedCause } from '../types/diagnostic';
@@ -19,6 +20,9 @@ interface TroubleshootingGuideStepProps {
   onSelectOtherCause: (cause: RankedCause) => void;
   onBackToDiagnosis: () => void;
   onResetSession: () => void;
+  onConfirmResolved?: (completedSteps: Record<number, boolean>) => void;
+  onOpenReport?: (completedSteps: Record<number, boolean>) => void;
+  isResolvedInitial?: boolean;
 }
 
 export const TroubleshootingGuideStep: React.FC<TroubleshootingGuideStepProps> = ({
@@ -26,13 +30,21 @@ export const TroubleshootingGuideStep: React.FC<TroubleshootingGuideStepProps> =
   allCauses,
   onSelectOtherCause,
   onBackToDiagnosis,
-  onResetSession
+  onResetSession,
+  onConfirmResolved,
+  onOpenReport,
+  isResolvedInitial = false
 }) => {
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
-  const [isConfirmedResolved, setIsConfirmedResolved] = useState<boolean>(false);
+  const [isConfirmedResolved, setIsConfirmedResolved] = useState<boolean>(isResolvedInitial);
 
   const toggleStep = (stepNum: number) => {
     setCompletedSteps((prev) => ({ ...prev, [stepNum]: !prev[stepNum] }));
+  };
+
+  const handleResolve = () => {
+    setIsConfirmedResolved(true);
+    onConfirmResolved?.(completedSteps);
   };
 
   const getSafetyBadge = (level: SafetyLevel) => {
@@ -119,15 +131,22 @@ export const TroubleshootingGuideStep: React.FC<TroubleshootingGuideStepProps> =
             Troubleshooting Confirmed Resolved
           </h3>
           <p className="text-xs text-emerald-700 dark:text-emerald-300/80 mb-4 max-w-md mx-auto">
-            Session updated. Thank you for confirming that the recommended fix steps resolved your system performance issue.
+            Session updated. Thank you for confirming that the recommended fix steps resolved your system issue.
           </p>
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => onOpenReport?.(completedSteps)}
+              className="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-sm flex items-center gap-2 transition-all"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Generate Diagnosis Report
+            </button>
             <button
               onClick={onResetSession}
-              className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium shadow-sm flex items-center gap-2 transition-all"
+              className="px-4 py-2 rounded-md bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-medium transition-all flex items-center gap-2"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              Start New Diagnostic Session
+              Start New Session
             </button>
           </div>
         </div>
@@ -215,7 +234,7 @@ export const TroubleshootingGuideStep: React.FC<TroubleshootingGuideStepProps> =
 
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={() => setIsConfirmedResolved(true)}
+              onClick={handleResolve}
               className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium flex items-center gap-2 shadow-sm transition-all"
             >
               <CheckCircle2 className="w-4 h-4" />

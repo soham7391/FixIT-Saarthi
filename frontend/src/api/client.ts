@@ -93,5 +93,17 @@ export const api = {
       body: JSON.stringify(requestPayload)
     });
     return handleResponse<DiagnosticResponse>(res);
+  },
+
+  /**
+   * Updates session status in Supabase (e.g. to 'resolved').
+   */
+  async updateSessionStatus(sessionId: string, status: string = 'resolved'): Promise<SessionResponse> {
+    const res = await fetch(`${API_BASE}/session/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    return handleResponse<SessionResponse>(res);
   }
 };
