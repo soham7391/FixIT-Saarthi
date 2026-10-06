@@ -1,5 +1,4 @@
 import React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { X, Printer, CheckCircle2, ShieldCheck, Laptop, Globe, Cpu, HardDrive, Monitor, Wifi, FileText } from 'lucide-react';
 import { DomainEnum } from '../types/diagnostic';
 import type { Observation, RankedCause } from '../types/diagnostic';
@@ -47,14 +46,6 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
   const yesAnswers = answeredList.filter(([_, val]) => val === true);
   const noAnswers = answeredList.filter(([_, val]) => val === false);
   const skippedCount = Object.keys(answers).filter((k) => answers[k] === undefined).length;
-
-  const qrPayload = JSON.stringify({
-    system: 'FixIT Saarthi',
-    session_id: sessionId || 'N/A',
-    domain: DOMAIN_LABELS[domain] || domain,
-    status: 'resolved',
-    resolved_at: resolvedAt
-  });
 
   const handlePrint = () => {
     window.print();
@@ -116,15 +107,6 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
               <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/70">
                 Confirmed resolved at: {new Date(resolvedAt).toLocaleString()}
               </p>
-            </div>
-
-            {/* QR Verification Code */}
-            <div className="flex items-center gap-3 bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800/80 shrink-0">
-              <QRCodeSVG value={qrPayload} size={64} level="M" />
-              <div className="text-[10px] text-slate-500 dark:text-zinc-400 max-w-[130px] leading-tight">
-                <span className="font-bold text-slate-700 dark:text-zinc-200 block mb-0.5">Verification QR</span>
-                Non-secret session record verification payload
-              </div>
             </div>
           </div>
 
