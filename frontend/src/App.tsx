@@ -439,7 +439,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Workflow Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 print:hidden">
         {/* Step Indicator */}
         <StepIndicator
           currentStep={currentStep}
@@ -526,7 +526,7 @@ export const App: React.FC = () => {
       />
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 py-4 text-center text-xs text-slate-500 dark:text-zinc-500">
+      <footer className="border-t border-slate-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 py-4 text-center text-xs text-slate-500 dark:text-zinc-500 print:hidden">
         <p>FixIT Saarthi — Expert Computer Diagnostic System</p>
       </footer>
     </div>

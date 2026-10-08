@@ -52,8 +52,8 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto printable-report-modal">
+      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden transition-all printable-report-card">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between bg-slate-50 dark:bg-zinc-950">
           <div className="flex items-center gap-3">
@@ -70,7 +70,7 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 print:hidden">
             <button
               onClick={handlePrint}
               className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm transition-all"
@@ -89,9 +89,9 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="p-6 overflow-y-auto space-y-6 text-xs text-slate-800 dark:text-zinc-200">
+        <div className="p-6 overflow-y-auto space-y-6 text-xs text-slate-800 dark:text-zinc-200 printable-report-content">
           {/* Section 1: Session Overview Banner */}
-          <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 print-break-inside-avoid">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="px-2 py-0.5 rounded bg-emerald-600 text-white font-mono font-semibold text-[10px] uppercase">
@@ -111,7 +111,7 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
           </div>
 
           {/* Section 2: System Environment Snapshot */}
-          <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-slate-50/50 dark:bg-zinc-950/40">
+          <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-slate-50/50 dark:bg-zinc-950/40 print-break-inside-avoid">
             <h3 className="font-bold text-slate-900 dark:text-zinc-100 mb-3 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
               <Laptop className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               Device & System Environment Snapshot
@@ -127,7 +127,7 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
           </div>
 
           {/* Section 3: Problem Description */}
-          <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900">
+          <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900 print-break-inside-avoid">
             <h3 className="font-bold text-slate-900 dark:text-zinc-100 mb-2 uppercase tracking-wider text-[11px]">
               Original Problem Description
             </h3>
@@ -137,7 +137,7 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
           </div>
 
           {/* Section 4: Diagnostic Interaction & Observations */}
-          <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900">
+          <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900 print-break-inside-avoid">
             <h3 className="font-bold text-slate-900 dark:text-zinc-100 mb-3 uppercase tracking-wider text-[11px]">
               Questionnaire Answers & Engine Observations
             </h3>
@@ -177,7 +177,7 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
           </div>
 
           {/* Section 5: Evaluated Diagnosis & Ranked Causes */}
-          <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900">
+          <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900 print-break-inside-avoid">
             <h3 className="font-bold text-slate-900 dark:text-zinc-100 mb-3 uppercase tracking-wider text-[11px]">
               Expert Engine Diagnostic Candidate Ranking
             </h3>
@@ -213,7 +213,7 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
 
           {/* Section 6: Resolution Verification & Action Summary */}
           {selectedCause && (
-            <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900">
+            <div className="border border-slate-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900 print-break-inside-avoid">
               <h3 className="font-bold text-slate-900 dark:text-zinc-100 mb-3 uppercase tracking-wider text-[11px]">
                 Executed Resolution Actions & Verification
               </h3>
@@ -246,7 +246,8 @@ export const DiagnosisReportModal: React.FC<DiagnosisReportModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-end">
+        <div className="px-6 py-3 border-t border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-end print:hidden">
+
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-medium transition-colors"
