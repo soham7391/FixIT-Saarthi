@@ -1,0 +1,38 @@
+name: FixIT Saarthi CD
+
+on:
+  workflow_run:
+    workflows: ["FixIT Saarthi CI"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Deploy Backend Web Service to Render
+        env:
+          HOOK_URL: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "::warning::RENDER_BACKEND_DEPLOY_HOOK_URL secret is not set. Skipping backend deployment hook."
+          else
+            echo "Triggering Render Backend deployment..."
+            curl -s -f -X POST "$HOOK_URL"
+            echo "Backend deployment hook triggered successfully."
+          fi
+
+      - name: Deploy Frontend Static Site to Render
+        env:
+          HOOK_URL: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "::warning::RENDER_FRONTEND_DEPLOY_HOOK_URL secret is not set. Skipping frontend deployment hook."
+          else
+            echo "Triggering Render Frontend deployment..."
+            curl -s -f -X POST "$HOOK_URL"
+            echo "Frontend deployment hook triggered successfully."
+          fi

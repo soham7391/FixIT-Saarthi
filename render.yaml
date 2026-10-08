@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: fixit-saarthi-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  - type: web
+    name: fixit-saarthi-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm run build
+    staticPublishPath: ./dist
+    plan: free
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false

@@ -154,12 +154,41 @@ From `backend/frontend`:
 
 ---
 
-## 🔄 Continuous Integration (CI)
-
-FixIT Saarthi uses **GitHub Actions** for continuous integration (`.github/workflows/ci.yml`). Every push or pull request targeting the `main` branch automatically triggers:
-
-- **Backend Tests**: Executes the complete Pytest suite (`python -m pytest tests -v`) on Python 3.11.
-- **Frontend Tests**: Executes the Vitest suite (`npx vitest run`) on Node.js 20.
-- **Frontend Production Build**: Validates TypeScript compilation and Vite PWA production bundle creation (`npm run build`).
 - **Docker Validation**: Builds and validates Docker images for both `backend` and `frontend` services using BuildKit without pushing to a registry.
+
+---
+
+## 🚀 Production Deployment (CD on Render)
+
+FixIT Saarthi uses an automated **CI → CD → Render** pipeline (`.github/workflows/cd.yml`).
+
+### Workflow & Trigger
+1. **GitHub Actions CI** runs on every push or PR to `main`.
+2. Upon **CI success on `main`**, the **CD workflow** (`FixIT Saarthi CD`) triggers automatically.
+3. CD sends HTTP POST requests to Render **Deploy Hooks** to deploy the latest commit seamlessly.
+
+### Render Services Architecture
+1. **Backend Web Service** (Render Free Web Service):
+   - **Environment**: Docker (uses root `Dockerfile`).
+   - **Required Render Environment Variables**:
+     - `GEMINI_API_KEY`: Google GenAI API Key.
+     - `GEMINI_MODEL`: `gemini-2.5-flash`
+     - `SUPABASE_URL`: Supabase project URL.
+     - `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key.
+
+2. **Frontend Static Site** (Render Free Static Site):
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm run build`
+   - **Publish Directory**: `dist`
+   - **Required Render Environment Variable**:
+     - `VITE_API_BASE_URL`: Deployed backend API URL (e.g., `https://fixit-saarthi-backend.onrender.com/api`).
+
+### Required GitHub Actions Secrets
+In your GitHub repository under **Settings > Secrets and variables > Actions**, configure:
+- `RENDER_BACKEND_DEPLOY_HOOK_URL`: Render Backend Deploy Hook URL.
+- `RENDER_FRONTEND_DEPLOY_HOOK_URL`: Render Frontend Deploy Hook URL.
+
+> [!NOTE]
+> On Render's Free Tier, backend Web Services spin down after 15 minutes of inactivity. The first request after sleep may take ~30–50 seconds while the container wakes up.
+
 
