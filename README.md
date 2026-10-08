@@ -126,3 +126,15 @@ The frontend teammate will build a Progressive Web App (PWA) using **React + Typ
 - 🌐 **Network / Connectivity** domain
 - 🗄️ **Supabase PostgreSQL** session persistence & diagnostic history
 - 📱 **QR Code Cross-Device Session Sync**
+
+---
+
+## 🔄 Continuous Integration (CI)
+
+FixIT Saarthi uses **GitHub Actions** for continuous integration (`.github/workflows/ci.yml`). Every push or pull request targeting the `main` branch automatically triggers:
+
+- **Backend Tests**: Executes the complete Pytest suite (`python -m pytest tests -v`) on Python 3.11.
+- **Frontend Tests**: Executes the Vitest suite (`npx vitest run`) on Node.js 20.
+- **Frontend Production Build**: Validates TypeScript compilation and Vite PWA production bundle creation (`npm run build`).
+- **Docker Validation**: Builds and validates Docker images for both `backend` and `frontend` services using BuildKit without pushing to a registry.
+

@@ -6,7 +6,7 @@ import type {
   Observation
 } from '../types/diagnostic';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export class ApiError extends Error {
   status: number;
